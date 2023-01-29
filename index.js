@@ -4,6 +4,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config();
+const checkLogin = require("./middlewares/checkLogin");
 
 // express app initialization
 const app = express();
@@ -75,17 +76,17 @@ async function run() {
             });
           } else {
             res.status(401).json({
-              error: "Authentication failed! 01",
+              error: "Authentication failed!",
             });
           }
         } else {
           res.status(401).json({
-            error: "Authentication failed! 02",
+            error: "Authentication failed!",
           });
         }
       } catch {
         res.status(401).json({
-          error: "Authentication failed! 03",
+          error: "Authentication failed!",
         });
       }
     });
@@ -98,10 +99,11 @@ async function run() {
     });
 
     // API endpoint for getting all bills
-    app.get("/api/billing-list", async (req, res) => {
-      const query = {};
-      const result = await bills.find(query).toArray();
-      res.send(result);
+    app.get("/api/billing-list", checkLogin, async (req, res) => {
+      console.log(req.email, req.userId);
+      //   const query = {};
+      //   const result = await bills.find(query).toArray();
+      res.send("hi");
     });
   } catch (error) {
     console.log(error.name, error.message);
