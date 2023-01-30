@@ -15,9 +15,9 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB deployment's connection
-const uri = "mongodb://localhost:27017";
-// const uri =
-//   "mongodb+srv://rakib:rakib@powerh.9sr3bmn.mongodb.net/?retryWrites=true&w=majority";
+
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@powerh.9sr3bmn.mongodb.net/?retryWrites=true&w=majority`;
+
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -133,6 +133,14 @@ async function run() {
         updateBilling,
         option
       );
+      res.send(result);
+    });
+
+    // API endpoint for delete bill
+    app.delete("/delete-billing/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await billCollections.deleteOne(query);
       res.send(result);
     });
   } catch (error) {
