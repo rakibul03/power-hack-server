@@ -1,4 +1,4 @@
-const { MongoClient } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -16,19 +16,22 @@ app.use(express.json());
 
 // MongoDB deployment's connection
 const uri = "mongodb://localhost:27017";
-const client = new MongoClient(uri);
+// const uri =
+//   "mongodb+srv://rakib:rakib@powerh.9sr3bmn.mongodb.net/?retryWrites=true&w=majority";
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverApi: ServerApiVersion.v1,
+});
 
 // connect db
 async function run() {
   try {
-    await client.connect();
-    console.log("Database connected");
-
-    const userSignUp = client.db("users").collection("userData");
-    const bills = client.db("allBills").collection("userBill");
+    const userCollection = client.db("users").collection("userData");
+    const billCollections = client.db("allBills").collection("userBill");
 
     // API endpoint for registration new user
-    app.post("/api/registration", async (req, res) => {
+    app.post("/registration", async (req, res) => {
       try {
         const hashedPassword = await bcrypt.hash(req.body.password, 10);
         const newUser = {
@@ -36,7 +39,7 @@ async function run() {
           email: req.body.email,
           password: hashedPassword,
         };
-        await userSignUp.insertOne(newUser);
+        await userCollection.insertOne(newUser);
         res.status(200).json({
           message: "Signup was successful!",
         });
@@ -47,12 +50,12 @@ async function run() {
       }
     });
 
-    // login
-    app.post("/api/login", async (req, res) => {
+    // API endpoint for login user
+    app.post("/login", async (req, res) => {
       try {
-        const user = await userSignUp.findOne({ email: req.body.email });
+        const user = await userCollection.findOne({ email: req.body.email });
 
-        if (user) {
+        if (user && user.email) {
           const isValidPassword = await bcrypt.compare(
             req.body.password,
             user.password
@@ -70,46 +73,77 @@ async function run() {
                 expiresIn: "1h",
               }
             );
-            res.status(200).json({
-              "access-token": token,
-              message: "Login successfull!",
-            });
+            res.send({ token });
           } else {
-            res.status(401).json({
-              error: "Authentication failed!",
+            res.status(401).send({
+              error: "Invalid Email or Password",
             });
           }
         } else {
-          res.status(401).json({
-            error: "Authentication failed!",
+          res.status(401).send({
+            error: "Invalid Email or Password",
           });
         }
       } catch {
-        res.status(401).json({
-          error: "Authentication failed!",
+        res.status(401).send({
+          error: "Invalid Email or Password",
         });
       }
     });
 
+    // API endpoint for getting all bills
+    app.get("/billing-list", checkLogin, async (req, res) => {
+      const page = parseInt(req.query.page);
+      const size = parseInt(req.query.size);
+
+      const query = {};
+      const cursor = billCollections.find(query).sort({ date: -1 });
+      const result = await cursor
+        .skip(page * size)
+        .limit(size)
+        .toArray();
+      const count = await billCollections.estimatedDocumentCount();
+      res.send({ count, result });
+    });
+
     // API endpoint for add billing
-    app.post("/api/billing-list", async (req, res) => {
+    app.post("/add-billing", async (req, res) => {
       const newBill = req.body;
-      const result = await bills.insertOne(newBill);
+      const result = await billCollections.insertOne(newBill);
       res.send(result);
     });
 
-    // API endpoint for getting all bills
-    app.get("/api/billing-list", checkLogin, async (req, res) => {
-      console.log(req.email, req.userId);
-      //   const query = {};
-      //   const result = await bills.find(query).toArray();
-      res.send("hi");
+    // API end point for update bill using query
+    app.put("/update-billing", async (req, res) => {
+      const id = req.query.id;
+      const filter = { _id: ObjectId(id) };
+      const update = req.body;
+
+      const option = { upsert: true };
+      const updateBilling = {
+        $set: {
+          name: update.updateBilling.name,
+          email: update.updateBilling.email,
+          phone: update.updateBilling.phone,
+          payable: update.updateBilling.payable,
+        },
+      };
+      const result = await billCollections.updateOne(
+        filter,
+        updateBilling,
+        option
+      );
+      res.send(result);
     });
   } catch (error) {
-    console.log(error.name, error.message);
+    res.status(401).send(error.name, error.message);
   }
 }
 run();
+
+app.get("/", (req, res) => {
+  res.send("Server is up and runing!");
+});
 
 app.listen(port, () => {
   console.log(`Server is up and running on port ${port}`);
